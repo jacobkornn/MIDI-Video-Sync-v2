@@ -1,15 +1,13 @@
 import Foundation
 import AVFoundation
 import AppKit
-import ImageIO   // for CGImagePropertyOrientation
+import CoreImage
+import ImageIO
 
 @MainActor
 final class VideoSamplerModel: ObservableObject {
 
     // MARK: - Public bindings
-
-    /// Backing player (AVQueuePlayer under the hood).
-    @Published var player: AVPlayer
 
     @Published var duration: Double = 0
     @Published var winStart: Double = 0.0
@@ -21,46 +19,39 @@ final class VideoSamplerModel: ObservableObject {
     @Published var warpMode: WarpMode = .linear
     var playbackRate: Float = 1.0
 
+    /// The frame currently being displayed by the view.
+    @Published var currentFrameImage: CGImage?
+
     enum WarpMode: Hashable {
         case linear
         case rate
         case curve
     }
 
-    // MARK: - Internal state
+    // MARK: - Internal frame cache
 
-    let queuePlayer: AVQueuePlayer
-    private(set) var videoOutput: AVPlayerItemVideoOutput?
+    private struct Frame {
+        let time: Double   // seconds
+        let image: CGImage
+    }
 
-    private var asset: AVURLAsset?
+    private var frames: [Frame] = []
+    private var framesReady = false
 
     private var winOffset: Double = 0
     private var winScale: Double = 1
 
     private var triggerID: UInt64 = 0
-    private var stopWorkItem: DispatchWorkItem?
 
-    private let timeScale: CMTimeScale = 600
+    // Playback state (sampler-style)
+    private var isPlaying: Bool = false
+    private var currentSliceStartSec: Double = 0
+    private var currentSliceEndSec: Double = 0
+    private var elapsedInSlice: Double = 0
+    private var currentFrameIndex: Int = 0
 
-    private var ciOrientation: CGImagePropertyOrientation = .up
-
-    /// Expose orientation for renderer.
-    var imageOrientation: CGImagePropertyOrientation {
-        ciOrientation
-    }
-
-    // MARK: - Init
-
-    init() {
-        let q = AVQueuePlayer()
-        self.queuePlayer = q
-        self.player = q
-
-        q.isMuted = true
-        q.actionAtItemEnd = .pause
-
-        recalcWindow()
-    }
+    private let ciContext = CIContext()
+    private var imageOrientation: CGImagePropertyOrientation = .up
 
     // MARK: - Window math
 
@@ -74,61 +65,98 @@ final class VideoSamplerModel: ObservableObject {
     // MARK: - Video loading
 
     func openVideo(url: URL) {
-        let a = AVURLAsset(url: url)
-        asset = a
+        status = "Loading \(url.lastPathComponent)…"
+        frames = []
+        framesReady = false
+        currentFrameImage = nil
+        isPlaying = false
 
-        let item = AVPlayerItem(asset: a)
-        attachVideoOutput(to: item)
-
-        queuePlayer.replaceCurrentItem(with: item)
-        queuePlayer.pause()
-
-        item.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
-
-        triggerID = 0
-
-        Task { await loadMetadata(asset: a, url: url) }
-    }
-
-    private func attachVideoOutput(to item: AVPlayerItem) {
-        let attrs: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-        ]
-        let output = AVPlayerItemVideoOutput(pixelBufferAttributes: attrs)
-        item.add(output)
-        self.videoOutput = output
-    }
-
-    private func loadMetadata(asset: AVAsset, url: URL) async {
-        do {
-            if let track = try await asset.loadTracks(withMediaType: .video).first {
-                let naturalSize = try await track.load(.naturalSize)
-                let transform = try await track.load(.preferredTransform)
-                let orientedSize = naturalSize.applying(transform)
-                videoSize = CGSize(width: abs(orientedSize.width),
-                                   height: abs(orientedSize.height))
-                ciOrientation = Self.orientation(from: transform)
-            }
-
-            let dur = (try? await asset.load(.duration)) ?? asset.duration
-            duration = max(0, dur.seconds)
-
-            let durText = duration > 0 ? String(format: "%.2fs", duration) : "unknown"
-            status = "Loaded: \(url.lastPathComponent) • \(durText)"
-        } catch {
-            status = "Loaded: \(url.lastPathComponent) • metadata error"
+        Task {
+            await loadAndDecode(url: url)
         }
     }
 
-    // MARK: - MIDI trigger
+    private func loadAndDecode(url: URL) async {
+        let asset = AVAsset(url: url)
+
+        guard
+            let track = asset.tracks(withMediaType: .video).first
+        else {
+            status = "Failed: no video track"
+            return
+        }
+
+        duration = asset.duration.seconds
+
+        // Size + orientation
+        do {
+            let naturalSize = try await track.load(.naturalSize)
+            let transform = try await track.load(.preferredTransform)
+            let oriented = naturalSize.applying(transform)
+            videoSize = CGSize(width: abs(oriented.width), height: abs(oriented.height))
+            imageOrientation = Self.orientation(from: transform)
+        } catch {
+            videoSize = CGSize(width: 360, height: 640)
+            imageOrientation = .up
+        }
+
+        do {
+            let reader = try AVAssetReader(asset: asset)
+            let outputSettings: [String: Any] = [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+            ]
+            let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
+            reader.add(output)
+
+            guard reader.startReading() else {
+                status = "Decode error"
+                return
+            }
+
+            var newFrames: [Frame] = []
+
+            while reader.status == .reading {
+                guard let sampleBuffer = output.copyNextSampleBuffer() else {
+                    break
+                }
+                guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                    continue
+                }
+
+                let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+                var ciImage = CIImage(cvPixelBuffer: pb)
+
+                // Apply orientation
+                ciImage = ciImage.oriented(imageOrientation)
+
+                let rect = ciImage.extent
+                if let cg = ciContext.createCGImage(ciImage, from: rect) {
+                    newFrames.append(Frame(time: pts, image: cg))
+                }
+            }
+
+            if reader.status == .completed, !newFrames.isEmpty {
+                frames = newFrames
+                framesReady = true
+                duration = max(duration, newFrames.last?.time ?? 0)
+                currentFrameImage = frames.first?.image
+                status = "Loaded: \(url.lastPathComponent) • \(String(format: "%.2fs", duration))"
+            } else {
+                status = "Decode failed"
+            }
+        } catch {
+            status = "Decode exception"
+        }
+    }
+
+    // MARK: - MIDI trigger (sampler style)
 
     func trigger(note: Int, i: Double, o: Double) {
-        guard duration > 0 else { return }
-        guard queuePlayer.currentItem != nil else { return }
+        guard framesReady, !frames.isEmpty else { return }
 
         recalcWindow()
         triggerID &+= 1
-        let myID = triggerID
+        let _ = triggerID  // reserved if we want to guard async later
 
         let inN  = winOffset + i * winScale
         let outN = winOffset + o * winScale
@@ -143,81 +171,59 @@ final class VideoSamplerModel: ObservableObject {
         let endSec   = max(0.0, min(duration, rawEnd))
         guard endSec > startSec else { return }
 
-        startSlice(
-            triggerID: myID,
-            startSec: startSec,
-            sliceDuration: endSec - startSec
-        )
+        startSlice(startSec: startSec, endSec: endSec)
     }
 
     func stopIfNeeded(note: Int) {
-        hardStop()
+        isPlaying = false
     }
 
-    // MARK: - Core mono sampler (persistent item)
+    // MARK: - Sampler engine
 
-    private func startSlice(
-        triggerID: UInt64,
-        startSec: Double,
-        sliceDuration: Double
-    ) {
-        stopWorkItem?.cancel()
-        stopWorkItem = nil
+    private func startSlice(startSec: Double, endSec: Double) {
+        // Mono: choke current playback and restart slice
+        isPlaying = false
+        elapsedInSlice = 0
 
-        guard let item = queuePlayer.currentItem else { return }
+        currentSliceStartSec = startSec
+        currentSliceEndSec = endSec
 
-        // Mono voice: choke current playback but keep item.
-        queuePlayer.pause()
-        item.cancelPendingSeeks()
-
-        // Base time
-        let baseTime = CMTime(seconds: startSec, preferredTimescale: timeScale)
-
-        // Nudge back by 1 tick to break AVFoundation "same time" coalescing
-        let oneTick = CMTime(value: 1, timescale: timeScale)
-        let adjustedTime: CMTime
-        if baseTime.value > 0 {
-            adjustedTime = CMTimeSubtract(baseTime, oneTick)
+        // Find first frame at or after startSec
+        if let idx = frames.firstIndex(where: { $0.time >= startSec }) {
+            currentFrameIndex = idx
         } else {
-            adjustedTime = baseTime
+            currentFrameIndex = frames.count - 1
         }
 
-        let myID = triggerID
-        let rate: Float = (warpMode == .rate) ? max(0.01, playbackRate) : 1.0
-        let realTime = sliceDuration / Double(rate)
-
-        item.seek(
-            to: adjustedTime,
-            toleranceBefore: .zero,
-            toleranceAfter: .zero
-        ) { [weak self] _ in
-            guard let self else { return }
-
-            Task { @MainActor in
-                guard self.triggerID == myID else { return }
-
-                self.queuePlayer.rate = rate
-                self.queuePlayer.play()
-
-                let work = DispatchWorkItem { [weak self] in
-                    guard let self,
-                          self.triggerID == myID else { return }
-                    self.queuePlayer.pause()
-                }
-
-                self.stopWorkItem = work
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + realTime,
-                    execute: work
-                )
-            }
-        }
+        // Display that frame immediately
+        currentFrameImage = frames[currentFrameIndex].image
+        isPlaying = true
     }
 
-    private func hardStop() {
-        stopWorkItem?.cancel()
-        stopWorkItem = nil
-        queuePlayer.pause()
+    /// Called from the view's display timer (e.g. ~60Hz).
+    func advanceFrame(deltaTime: Double) {
+        guard isPlaying, framesReady, !frames.isEmpty else { return }
+
+        let rate: Double = (warpMode == .rate) ? Double(max(0.01, playbackRate)) : 1.0
+
+        elapsedInSlice += deltaTime * rate
+        let nowSec = currentSliceStartSec + elapsedInSlice
+
+        if nowSec >= currentSliceEndSec {
+            isPlaying = false
+            return
+        }
+
+        // Advance currentFrameIndex forward while we haven't reached nowSec
+        var idx = currentFrameIndex
+        let count = frames.count
+
+        while idx + 1 < count && frames[idx + 1].time <= nowSec {
+            idx += 1
+        }
+
+        currentFrameIndex = idx
+        currentFrameImage = frames[currentFrameIndex].image
     }
 
     // MARK: - Warp
@@ -227,6 +233,7 @@ final class VideoSamplerModel: ObservableObject {
         case .linear, .rate:
             return t
         case .curve:
+            // Placeholder for curve mapping
             return t
         }
     }
@@ -234,16 +241,12 @@ final class VideoSamplerModel: ObservableObject {
     // MARK: - Orientation helper
 
     private static func orientation(from t: CGAffineTransform) -> CGImagePropertyOrientation {
-        // Common transform cases for iOS/macOS videos
         if t.a == 0 && t.b == 1 && t.c == -1 && t.d == 0 {
-            // 90° right
-            return .right
+            return .right    // 90° right
         } else if t.a == 0 && t.b == -1 && t.c == 1 && t.d == 0 {
-            // 90° left
-            return .left
+            return .left     // 90° left
         } else if t.a == -1 && t.b == 0 && t.c == 0 && t.d == -1 {
-            // 180°
-            return .down
+            return .down     // 180°
         } else {
             return .up
         }

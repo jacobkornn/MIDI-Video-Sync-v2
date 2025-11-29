@@ -1,7 +1,5 @@
 import SwiftUI
-import AVKit
 import AppKit
-import CoreImage
 
 struct ContentView: View {
     @StateObject private var model = VideoSamplerModel()
@@ -155,7 +153,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Custom Video Surface (no AVPlayerView)
+// MARK: - Custom Video Surface
 
 struct VideoSurfaceView: NSViewRepresentable {
     @ObservedObject var model: VideoSamplerModel
@@ -180,8 +178,6 @@ final class VideoSurfaceNSView: NSView {
     }
 
     private var displayTimer: Timer?
-    private let ciContext = CIContext()
-    private var lastImage: CGImage?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -212,33 +208,15 @@ final class VideoSurfaceNSView: NSView {
     }
 
     @objc private func step() {
-        guard
-            let model,
-            let output = model.videoOutput,
-            let item = model.queuePlayer.currentItem
-        else {
-            return
-        }
+        guard let model else { return }
 
-        let hostTime = CACurrentMediaTime()
-        let itemTime = output.itemTime(forHostTime: hostTime)
+        // Advance sampler phase
+        model.advanceFrame(deltaTime: 1.0 / 60.0)
 
-        if output.hasNewPixelBuffer(forItemTime: itemTime),
-           let pb = output.copyPixelBuffer(forItemTime: itemTime, itemTimeForDisplay: nil) {
-
-            var ciImage = CIImage(cvPixelBuffer: pb)
-            ciImage = ciImage.oriented(model.imageOrientation)
-
-            let rect = ciImage.extent
-            if let cg = ciContext.createCGImage(ciImage, from: rect) {
-                lastImage = cg
-                layer?.contentsGravity = .resizeAspectFill
-                layer?.contents = cg
-            }
-        } else if let lastImage {
-            // Keep last frame, don't go black
+        // Draw current frame
+        if let cg = model.currentFrameImage {
             layer?.contentsGravity = .resizeAspectFill
-            layer?.contents = lastImage
+            layer?.contents = cg
         }
     }
 }
