@@ -1,135 +1,249 @@
 import Foundation
 import AVFoundation
 import AppKit
-import ImageIO   // for CGImagePropertyOrientation
+import CoreImage
+import ImageIO
 
 @MainActor
 final class VideoSamplerModel: ObservableObject {
 
     // MARK: - Public bindings
 
-    /// Backing player (AVQueuePlayer under the hood).
-    @Published var player: AVPlayer
-
     @Published var duration: Double = 0
-    @Published var winStart: Double = 0.0
-    @Published var winEnd: Double = 1.0
+    @Published var winStart: Double = 0.0      // global 0–1
+    @Published var winEnd: Double = 1.0        // global 0–1
     @Published var status: String = "No video"
     @Published var videoSize = CGSize(width: 360, height: 640)
 
     @Published var latencyOffsetSec: Double = 0.0
-    @Published var warpMode: WarpMode = .linear
-    var playbackRate: Float = 1.0
 
     enum WarpMode: Hashable {
         case linear
         case rate
-        case curve
     }
 
-    // MARK: - Internal state
+    @Published var warpMode: WarpMode = .linear
+    var playbackRate: Float = 1.0
 
-    let queuePlayer: AVQueuePlayer
-    private(set) var videoOutput: AVPlayerItemVideoOutput?
+    enum SliceMode: Hashable {
+        case auto
+        case manual
+    }
 
-    private var asset: AVURLAsset?
+    @Published var sliceMode: SliceMode = .auto
+
+    // MARK: - Manual window-relative slices
+
+    /// All timing info is WINDOW-RELATIVE (0–1), not absolute video time.
+    struct Slice: Identifiable, Hashable {
+        let id: UUID
+        /// Center position 0–1 inside the window
+        var centerN: Double
+        /// Half width 0–0.5 inside the window
+        var halfWidthN: Double
+        /// MIDI notes mapped to this slice
+        var assignedNotes: Set<Int>
+
+        init(
+            id: UUID = UUID(),
+            centerN: Double,
+            halfWidthN: Double = 0.05,
+            assignedNotes: Set<Int> = []
+        ) {
+            self.id = id
+            self.centerN = centerN
+            self.halfWidthN = halfWidthN
+            self.assignedNotes = assignedNotes
+        }
+
+        var startN: Double { centerN - halfWidthN }
+        var endN: Double { centerN + halfWidthN }
+    }
+
+    /// Slices are kept in memory regardless of sliceMode; auto mode just ignores them.
+    @Published var slices: [Slice] = []
+
+    // MARK: - Internal frame cache
+
+    @Published var currentFrameImage: CGImage?
+
+    private struct Frame {
+        let time: Double   // seconds
+        let image: CGImage
+    }
+
+    private var frames: [Frame] = []
+    private var framesReady = false
 
     private var winOffset: Double = 0
     private var winScale: Double = 1
 
     private var triggerID: UInt64 = 0
-    private var stopWorkItem: DispatchWorkItem?
 
-    private let timeScale: CMTimeScale = 600
+    // Playback state
+    private var isPlaying: Bool = false
+    private var currentSliceStartSec: Double = 0
+    private var currentSliceEndSec: Double = 0
+    private var elapsedInSlice: Double = 0
+    private var currentFrameIndex: Int = 0
 
-    private var ciOrientation: CGImagePropertyOrientation = .up
-
-    /// Expose orientation for renderer.
-    var imageOrientation: CGImagePropertyOrientation {
-        ciOrientation
-    }
-
-    // MARK: - Init
-
-    init() {
-        let q = AVQueuePlayer()
-        self.queuePlayer = q
-        self.player = q
-
-        q.isMuted = true
-        q.actionAtItemEnd = .pause
-
-        recalcWindow()
-    }
+    private let ciContext = CIContext()
+    private var imageOrientation: CGImagePropertyOrientation = .up
 
     // MARK: - Window math
 
     private func recalcWindow() {
-        let s = max(0, min(1, winStart))
-        let e = max(s, min(1, winEnd))
+        let s = clamp01(winStart)
+        let e = max(s, clamp01(winEnd))
         winOffset = s
-        winScale = e - s
+        winScale = max(e - s, 1e-6)
+    }
+
+    // MARK: - Public slice helpers (window-relative)
+
+    /// Create a slice whose center is at `centerN` inside the window (0–1).
+    func addSliceAtWindowPosition(centerN: Double, defaultHalfWidth: Double = 0.05) {
+        let c = clamp01(centerN)
+        let hw = max(0.001, min(0.5, defaultHalfWidth))
+        let slice = Slice(centerN: c, halfWidthN: hw)
+        slices.append(slice)
+    }
+
+    /// Assign a MIDI note (e.g. 36 == C1) to an existing slice.
+    func assign(note: Int, to sliceID: UUID) {
+        guard let idx = slices.firstIndex(where: { $0.id == sliceID }) else { return }
+        var s = slices[idx]
+        s.assignedNotes.insert(note)
+        slices[idx] = s
+    }
+
+    /// Update slice center after dragging (still window-relative 0–1).
+    func updateSliceCenter(sliceID: UUID, newCenterN: Double) {
+        guard let idx = slices.firstIndex(where: { $0.id == sliceID }) else { return }
+        var s = slices[idx]
+
+        let hw = max(0.001, min(0.5, s.halfWidthN))
+        var c = clamp01(newCenterN)
+
+        // Keep full slice inside [0,1]
+        if c - hw < 0 {
+            c = hw
+        } else if c + hw > 1 {
+            c = 1 - hw
+        }
+
+        s.centerN = c
+        s.halfWidthN = hw
+        slices[idx] = s
     }
 
     // MARK: - Video loading
 
     func openVideo(url: URL) {
-        let a = AVURLAsset(url: url)
-        asset = a
+        status = "Loading \(url.lastPathComponent)…"
+        frames = []
+        framesReady = false
+        currentFrameImage = nil
+        isPlaying = false
+        duration = 0
 
-        let item = AVPlayerItem(asset: a)
-        attachVideoOutput(to: item)
-
-        queuePlayer.replaceCurrentItem(with: item)
-        queuePlayer.pause()
-
-        item.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
-
-        triggerID = 0
-
-        Task { await loadMetadata(asset: a, url: url) }
-    }
-
-    private func attachVideoOutput(to item: AVPlayerItem) {
-        let attrs: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-        ]
-        let output = AVPlayerItemVideoOutput(pixelBufferAttributes: attrs)
-        item.add(output)
-        self.videoOutput = output
-    }
-
-    private func loadMetadata(asset: AVAsset, url: URL) async {
-        do {
-            if let track = try await asset.loadTracks(withMediaType: .video).first {
-                let naturalSize = try await track.load(.naturalSize)
-                let transform = try await track.load(.preferredTransform)
-                let orientedSize = naturalSize.applying(transform)
-                videoSize = CGSize(width: abs(orientedSize.width),
-                                   height: abs(orientedSize.height))
-                ciOrientation = Self.orientation(from: transform)
-            }
-
-            let dur = (try? await asset.load(.duration)) ?? asset.duration
-            duration = max(0, dur.seconds)
-
-            let durText = duration > 0 ? String(format: "%.2fs", duration) : "unknown"
-            status = "Loaded: \(url.lastPathComponent) • \(durText)"
-        } catch {
-            status = "Loaded: \(url.lastPathComponent) • metadata error"
+        Task {
+            await loadAndDecode(url: url)
         }
     }
 
-    // MARK: - MIDI trigger
+    private func loadAndDecode(url: URL) async {
+        let asset = AVAsset(url: url)
+
+        guard let track = asset.tracks(withMediaType: .video).first else {
+            status = "Failed: no video track"
+            return
+        }
+
+        duration = asset.duration.seconds
+
+        // size + orientation
+        do {
+            let naturalSize = try await track.load(.naturalSize)
+            let transform = try await track.load(.preferredTransform)
+            let oriented = naturalSize.applying(transform)
+            videoSize = CGSize(width: abs(oriented.width), height: abs(oriented.height))
+            imageOrientation = Self.orientation(from: transform)
+        } catch {
+            videoSize = CGSize(width: 360, height: 640)
+            imageOrientation = .up
+        }
+
+        do {
+            let reader = try AVAssetReader(asset: asset)
+            let outputSettings: [String: Any] = [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+            ]
+            let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
+            reader.add(output)
+
+            guard reader.startReading() else {
+                status = "Decode error"
+                return
+            }
+
+            var newFrames: [Frame] = []
+
+            while reader.status == .reading {
+                guard let sampleBuffer = output.copyNextSampleBuffer() else {
+                    break
+                }
+                guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                    continue
+                }
+
+                let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+                var ciImage = CIImage(cvPixelBuffer: pb)
+                ciImage = ciImage.oriented(imageOrientation)
+
+                let rect = ciImage.extent
+                if let cg = ciContext.createCGImage(ciImage, from: rect) {
+                    newFrames.append(Frame(time: pts, image: cg))
+                }
+            }
+
+            if reader.status == .completed, !newFrames.isEmpty {
+                frames = newFrames
+                framesReady = true
+                duration = max(duration, newFrames.last?.time ?? 0)
+                currentFrameImage = frames.first?.image
+                status = "Loaded: \(url.lastPathComponent) • \(String(format: "%.2fs", duration))"
+            } else {
+                status = "Decode failed"
+            }
+        } catch {
+            status = "Decode exception"
+        }
+    }
+
+    // MARK: - MIDI trigger entry point
 
     func trigger(note: Int, i: Double, o: Double) {
-        guard duration > 0 else { return }
-        guard queuePlayer.currentItem != nil else { return }
+        guard framesReady, !frames.isEmpty else { return }
 
         recalcWindow()
         triggerID &+= 1
-        let myID = triggerID
 
+        switch sliceMode {
+        case .auto:
+            triggerAuto(note: note, i: i, o: o)
+        case .manual:
+            triggerManual(note: note, fallbackI: i, fallbackO: o)
+        }
+    }
+
+    func stopIfNeeded(note: Int) {
+        isPlaying = false
+    }
+
+    // MARK: - Auto (Simpler i/o) mode
+
+    private func triggerAuto(note: Int, i: Double, o: Double) {
         let inN  = winOffset + i * winScale
         let outN = winOffset + o * winScale
 
@@ -143,81 +257,95 @@ final class VideoSamplerModel: ObservableObject {
         let endSec   = max(0.0, min(duration, rawEnd))
         guard endSec > startSec else { return }
 
-        startSlice(
-            triggerID: myID,
-            startSec: startSec,
-            sliceDuration: endSec - startSec
-        )
+        startSlice(startSec: startSec, endSec: endSec)
     }
 
-    func stopIfNeeded(note: Int) {
-        hardStop()
+    // MARK: - Manual (window-relative) mode
+
+    private func sliceFor(note: Int) -> Slice? {
+        // First check explicit mapping
+        if let s = slices.first(where: { $0.assignedNotes.contains(note) }) {
+            return s
+        }
+        guard !slices.isEmpty else { return nil }
+
+        // Fallback: index mapping starting at C1 (36)
+        let base = 36
+        let idx = max(0, min(slices.count - 1, note - base))
+        return slices[idx]
     }
 
-    // MARK: - Core mono sampler (persistent item)
+    private func triggerManual(note: Int, fallbackI: Double, fallbackO: Double) {
+        guard duration > 0 else { return }
 
-    private func startSlice(
-        triggerID: UInt64,
-        startSec: Double,
-        sliceDuration: Double
-    ) {
-        stopWorkItem?.cancel()
-        stopWorkItem = nil
+        guard let s = sliceFor(note: note) else {
+            // If no manual slice, fall back to Simpler’s i/o so nothing feels dead
+            triggerAuto(note: note, i: fallbackI, o: fallbackO)
+            return
+        }
 
-        guard let item = queuePlayer.currentItem else { return }
+        // Convert window-relative slice → global normalized → seconds
+        recalcWindow()
 
-        // Mono voice: choke current playback but keep item.
-        queuePlayer.pause()
-        item.cancelPendingSeeks()
+        let startWindowN = s.startN
+        let endWindowN   = s.endN
 
-        // Base time
-        let baseTime = CMTime(seconds: startSec, preferredTimescale: timeScale)
+        let startGlobalN = winOffset + startWindowN * winScale
+        let endGlobalN   = winOffset + endWindowN   * winScale
 
-        // Nudge back by 1 tick to break AVFoundation "same time" coalescing
-        let oneTick = CMTime(value: 1, timescale: timeScale)
-        let adjustedTime: CMTime
-        if baseTime.value > 0 {
-            adjustedTime = CMTimeSubtract(baseTime, oneTick)
+        var startSec = clamp01(startGlobalN) * duration + latencyOffsetSec
+        var endSec   = clamp01(endGlobalN)   * duration + latencyOffsetSec
+
+        let trimStartSec = winOffset * duration
+        let trimEndSec   = (winOffset + winScale) * duration
+
+        startSec = max(trimStartSec, min(duration, startSec))
+        endSec   = max(startSec, min(trimEndSec, endSec))
+        guard endSec > startSec else { return }
+
+        startSlice(startSec: startSec, endSec: endSec)
+    }
+
+    // MARK: - Sampler engine
+
+    private func startSlice(startSec: Double, endSec: Double) {
+        isPlaying = false
+        elapsedInSlice = 0
+
+        currentSliceStartSec = startSec
+        currentSliceEndSec = endSec
+
+        if let idx = frames.firstIndex(where: { $0.time >= startSec }) {
+            currentFrameIndex = idx
         } else {
-            adjustedTime = baseTime
+            currentFrameIndex = frames.count - 1
         }
 
-        let myID = triggerID
-        let rate: Float = (warpMode == .rate) ? max(0.01, playbackRate) : 1.0
-        let realTime = sliceDuration / Double(rate)
-
-        item.seek(
-            to: adjustedTime,
-            toleranceBefore: .zero,
-            toleranceAfter: .zero
-        ) { [weak self] _ in
-            guard let self else { return }
-
-            Task { @MainActor in
-                guard self.triggerID == myID else { return }
-
-                self.queuePlayer.rate = rate
-                self.queuePlayer.play()
-
-                let work = DispatchWorkItem { [weak self] in
-                    guard let self,
-                          self.triggerID == myID else { return }
-                    self.queuePlayer.pause()
-                }
-
-                self.stopWorkItem = work
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + realTime,
-                    execute: work
-                )
-            }
-        }
+        currentFrameImage = frames[currentFrameIndex].image
+        isPlaying = true
     }
 
-    private func hardStop() {
-        stopWorkItem?.cancel()
-        stopWorkItem = nil
-        queuePlayer.pause()
+    func advanceFrame(deltaTime: Double) {
+        guard isPlaying, framesReady, !frames.isEmpty else { return }
+
+        let rate: Double = (warpMode == .rate) ? Double(max(0.01, playbackRate)) : 1.0
+        elapsedInSlice += deltaTime * rate
+        let nowSec = currentSliceStartSec + elapsedInSlice
+
+        if nowSec >= currentSliceEndSec {
+            isPlaying = false
+            return
+        }
+
+        var idx = currentFrameIndex
+        let count = frames.count
+
+        while idx + 1 < count && frames[idx + 1].time <= nowSec {
+            idx += 1
+        }
+
+        currentFrameIndex = idx
+        currentFrameImage = frames[currentFrameIndex].image
     }
 
     // MARK: - Warp
@@ -226,23 +354,17 @@ final class VideoSamplerModel: ObservableObject {
         switch warpMode {
         case .linear, .rate:
             return t
-        case .curve:
-            return t
         }
     }
 
     // MARK: - Orientation helper
 
     private static func orientation(from t: CGAffineTransform) -> CGImagePropertyOrientation {
-        // Common transform cases for iOS/macOS videos
         if t.a == 0 && t.b == 1 && t.c == -1 && t.d == 0 {
-            // 90° right
             return .right
         } else if t.a == 0 && t.b == -1 && t.c == 1 && t.d == 0 {
-            // 90° left
             return .left
         } else if t.a == -1 && t.b == 0 && t.c == 0 && t.d == -1 {
-            // 180°
             return .down
         } else {
             return .up
