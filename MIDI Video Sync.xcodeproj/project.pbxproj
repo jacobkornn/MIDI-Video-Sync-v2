@@ -1,0 +1,573 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B31338572EDA5FD100D773C3 /* OSCReceiver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B31338562EDA5FD100D773C3 /* OSCReceiver.swift */; };
+		B313385B2EDA5FF900D773C3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B313385A2EDA5FF900D773C3 /* ContentView.swift */; };
+		B313385D2EDA6A5E00D773C3 /* VideoSamplerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B313385C2EDA6A5E00D773C3 /* VideoSamplerModel.swift */; };
+		B313385F2EDA6A7500D773C3 /* MIDIVideoSyncApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B313385E2EDA6A7500D773C3 /* MIDIVideoSyncApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B381EAE92EDA5E95003F7CF3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B381EACF2EDA5E94003F7CF3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B381EAD62EDA5E94003F7CF3;
+			remoteInfo = "MIDI Video Sync";
+		};
+		B381EAF32EDA5E95003F7CF3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B381EACF2EDA5E94003F7CF3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B381EAD62EDA5E94003F7CF3;
+			remoteInfo = "MIDI Video Sync";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		B31338562EDA5FD100D773C3 /* OSCReceiver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OSCReceiver.swift; sourceTree = "<group>"; };
+		B313385A2EDA5FF900D773C3 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B313385C2EDA6A5E00D773C3 /* VideoSamplerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoSamplerModel.swift; sourceTree = "<group>"; };
+		B313385E2EDA6A7500D773C3 /* MIDIVideoSyncApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIVideoSyncApp.swift; sourceTree = "<group>"; };
+		B381EAD72EDA5E94003F7CF3 /* MIDI Video Sync.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MIDI Video Sync.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B381EAE82EDA5E95003F7CF3 /* MIDI Video SyncTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "MIDI Video SyncTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B381EAF22EDA5E95003F7CF3 /* MIDI Video SyncUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "MIDI Video SyncUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		B381EAD92EDA5E94003F7CF3 /* MIDI Video Sync */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "MIDI Video Sync";
+			sourceTree = "<group>";
+		};
+		B381EAEB2EDA5E95003F7CF3 /* MIDI Video SyncTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "MIDI Video SyncTests";
+			sourceTree = "<group>";
+		};
+		B381EAF52EDA5E95003F7CF3 /* MIDI Video SyncUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "MIDI Video SyncUITests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B381EAD42EDA5E94003F7CF3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B381EAE52EDA5E95003F7CF3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B381EAEF2EDA5E95003F7CF3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		B381EACE2EDA5E94003F7CF3 = {
+			isa = PBXGroup;
+			children = (
+				B313385C2EDA6A5E00D773C3 /* VideoSamplerModel.swift */,
+				B313385E2EDA6A7500D773C3 /* MIDIVideoSyncApp.swift */,
+				B31338562EDA5FD100D773C3 /* OSCReceiver.swift */,
+				B313385A2EDA5FF900D773C3 /* ContentView.swift */,
+				B381EAD92EDA5E94003F7CF3 /* MIDI Video Sync */,
+				B381EAEB2EDA5E95003F7CF3 /* MIDI Video SyncTests */,
+				B381EAF52EDA5E95003F7CF3 /* MIDI Video SyncUITests */,
+				B381EAD82EDA5E94003F7CF3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B381EAD82EDA5E94003F7CF3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B381EAD72EDA5E94003F7CF3 /* MIDI Video Sync.app */,
+				B381EAE82EDA5E95003F7CF3 /* MIDI Video SyncTests.xctest */,
+				B381EAF22EDA5E95003F7CF3 /* MIDI Video SyncUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B381EAD62EDA5E94003F7CF3 /* MIDI Video Sync */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B381EAFC2EDA5E95003F7CF3 /* Build configuration list for PBXNativeTarget "MIDI Video Sync" */;
+			buildPhases = (
+				B381EAD32EDA5E94003F7CF3 /* Sources */,
+				B381EAD42EDA5E94003F7CF3 /* Frameworks */,
+				B381EAD52EDA5E94003F7CF3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B381EAD92EDA5E94003F7CF3 /* MIDI Video Sync */,
+			);
+			name = "MIDI Video Sync";
+			packageProductDependencies = (
+			);
+			productName = "MIDI Video Sync";
+			productReference = B381EAD72EDA5E94003F7CF3 /* MIDI Video Sync.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B381EAE72EDA5E95003F7CF3 /* MIDI Video SyncTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B381EAFF2EDA5E95003F7CF3 /* Build configuration list for PBXNativeTarget "MIDI Video SyncTests" */;
+			buildPhases = (
+				B381EAE42EDA5E95003F7CF3 /* Sources */,
+				B381EAE52EDA5E95003F7CF3 /* Frameworks */,
+				B381EAE62EDA5E95003F7CF3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B381EAEA2EDA5E95003F7CF3 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B381EAEB2EDA5E95003F7CF3 /* MIDI Video SyncTests */,
+			);
+			name = "MIDI Video SyncTests";
+			packageProductDependencies = (
+			);
+			productName = "MIDI Video SyncTests";
+			productReference = B381EAE82EDA5E95003F7CF3 /* MIDI Video SyncTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B381EAF12EDA5E95003F7CF3 /* MIDI Video SyncUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B381EB022EDA5E95003F7CF3 /* Build configuration list for PBXNativeTarget "MIDI Video SyncUITests" */;
+			buildPhases = (
+				B381EAEE2EDA5E95003F7CF3 /* Sources */,
+				B381EAEF2EDA5E95003F7CF3 /* Frameworks */,
+				B381EAF02EDA5E95003F7CF3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B381EAF42EDA5E95003F7CF3 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B381EAF52EDA5E95003F7CF3 /* MIDI Video SyncUITests */,
+			);
+			name = "MIDI Video SyncUITests";
+			packageProductDependencies = (
+			);
+			productName = "MIDI Video SyncUITests";
+			productReference = B381EAF22EDA5E95003F7CF3 /* MIDI Video SyncUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B381EACF2EDA5E94003F7CF3 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1620;
+				LastUpgradeCheck = 1620;
+				TargetAttributes = {
+					B381EAD62EDA5E94003F7CF3 = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					B381EAE72EDA5E95003F7CF3 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = B381EAD62EDA5E94003F7CF3;
+					};
+					B381EAF12EDA5E95003F7CF3 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = B381EAD62EDA5E94003F7CF3;
+					};
+				};
+			};
+			buildConfigurationList = B381EAD22EDA5E94003F7CF3 /* Build configuration list for PBXProject "MIDI Video Sync" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = B381EACE2EDA5E94003F7CF3;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = B381EAD82EDA5E94003F7CF3 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B381EAD62EDA5E94003F7CF3 /* MIDI Video Sync */,
+				B381EAE72EDA5E95003F7CF3 /* MIDI Video SyncTests */,
+				B381EAF12EDA5E95003F7CF3 /* MIDI Video SyncUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B381EAD52EDA5E94003F7CF3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B381EAE62EDA5E95003F7CF3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B381EAF02EDA5E95003F7CF3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B381EAD32EDA5E94003F7CF3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B313385B2EDA5FF900D773C3 /* ContentView.swift in Sources */,
+				B313385F2EDA6A7500D773C3 /* MIDIVideoSyncApp.swift in Sources */,
+				B31338572EDA5FD100D773C3 /* OSCReceiver.swift in Sources */,
+				B313385D2EDA6A5E00D773C3 /* VideoSamplerModel.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B381EAE42EDA5E95003F7CF3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B381EAEE2EDA5E95003F7CF3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B381EAEA2EDA5E95003F7CF3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B381EAD62EDA5E94003F7CF3 /* MIDI Video Sync */;
+			targetProxy = B381EAE92EDA5E95003F7CF3 /* PBXContainerItemProxy */;
+		};
+		B381EAF42EDA5E95003F7CF3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B381EAD62EDA5E94003F7CF3 /* MIDI Video Sync */;
+			targetProxy = B381EAF32EDA5E95003F7CF3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		B381EAFA2EDA5E95003F7CF3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		B381EAFB2EDA5E95003F7CF3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		B381EAFD2EDA5E95003F7CF3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "MIDI Video Sync/MIDI_Video_Sync.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"MIDI Video Sync/Preview Content\"";
+				DEVELOPMENT_TEAM = 44592Z5V8Q;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "illusion.MIDI-Video-Sync";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B381EAFE2EDA5E95003F7CF3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "MIDI Video Sync/MIDI_Video_Sync.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"MIDI Video Sync/Preview Content\"";
+				DEVELOPMENT_TEAM = 44592Z5V8Q;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "illusion.MIDI-Video-Sync";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		B381EB002EDA5E95003F7CF3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 44592Z5V8Q;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "illusion.MIDI-Video-SyncTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MIDI Video Sync.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MIDI Video Sync";
+			};
+			name = Debug;
+		};
+		B381EB012EDA5E95003F7CF3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 44592Z5V8Q;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "illusion.MIDI-Video-SyncTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MIDI Video Sync.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MIDI Video Sync";
+			};
+			name = Release;
+		};
+		B381EB032EDA5E95003F7CF3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 44592Z5V8Q;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "illusion.MIDI-Video-SyncUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = "MIDI Video Sync";
+			};
+			name = Debug;
+		};
+		B381EB042EDA5E95003F7CF3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 44592Z5V8Q;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "illusion.MIDI-Video-SyncUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = "MIDI Video Sync";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B381EAD22EDA5E94003F7CF3 /* Build configuration list for PBXProject "MIDI Video Sync" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B381EAFA2EDA5E95003F7CF3 /* Debug */,
+				B381EAFB2EDA5E95003F7CF3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B381EAFC2EDA5E95003F7CF3 /* Build configuration list for PBXNativeTarget "MIDI Video Sync" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B381EAFD2EDA5E95003F7CF3 /* Debug */,
+				B381EAFE2EDA5E95003F7CF3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B381EAFF2EDA5E95003F7CF3 /* Build configuration list for PBXNativeTarget "MIDI Video SyncTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B381EB002EDA5E95003F7CF3 /* Debug */,
+				B381EB012EDA5E95003F7CF3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B381EB022EDA5E95003F7CF3 /* Build configuration list for PBXNativeTarget "MIDI Video SyncUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B381EB032EDA5E95003F7CF3 /* Debug */,
+				B381EB042EDA5E95003F7CF3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = B381EACF2EDA5E94003F7CF3 /* Project object */;
+}
