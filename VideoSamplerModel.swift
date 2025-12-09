@@ -17,6 +17,9 @@ final class VideoSamplerModel: ObservableObject {
 
     @Published var latencyOffsetSec: Double = 0.0
 
+    // Auto mode: continuous playback toggle
+    @Published var autoContinuous: Bool = false
+
     enum WarpMode: Hashable {
         case linear
         case rate
@@ -25,9 +28,13 @@ final class VideoSamplerModel: ObservableObject {
     @Published var warpMode: WarpMode = .linear
     var playbackRate: Float = 1.0
 
+    // MARK: - Slice modes (expanded)
+
     enum SliceMode: Hashable {
         case auto
         case manual
+        case chrom      // NEW
+        case random     // NEW
     }
 
     @Published var sliceMode: SliceMode = .auto
@@ -63,6 +70,49 @@ final class VideoSamplerModel: ObservableObject {
     /// Slices are kept in memory regardless of sliceMode; auto mode just ignores them.
     @Published var slices: [Slice] = []
 
+    // MARK: - Chromatic mode (virtual slices, non-deletable)
+
+    /// Base octave for chromatic mode (C3 by default).
+    @Published var chromaticBaseOctave: Int = 3
+
+    /// Always 2 octaves in chromatic mode.
+    let chromaticSliceCount: Int = 24
+
+    /// MIDI notes used in Chrom mode (C<baseOctave> … B<baseOctave+1>).
+    func chromaticNotes() -> [Int] {
+        // Matches midiNoteName logic in ContentView: octave = note/12 - 2
+        // So C(octave) = 12 * (octave + 2)
+        let baseMidi = (chromaticBaseOctave + 2) * 12
+        return (0..<chromaticSliceCount).map { baseMidi + $0 }
+    }
+
+    // MARK: - Random mode (virtual slices, non-deletable)
+
+    /// Adjustable random note range – defaults C2–C4.
+    @Published var randomRangeLow: Int = (2 + 2) * 12      // C2 = 48
+    @Published var randomRangeHigh: Int = (4 + 2) * 12     // C4 = 72
+
+    /// Note → index mapping for Random mode (visual/trigger ordering).
+    @Published var randomMapping: [Int: Int] = [:]
+
+    /// Shuffle mapping of notes in current range into random visual positions.
+    func shuffleRandomSlices() {
+        let low = min(randomRangeLow, randomRangeHigh)
+        let high = max(randomRangeLow, randomRangeHigh)
+        let notes = Array(low...high)
+        guard !notes.isEmpty else {
+            randomMapping = [:]
+            return
+        }
+
+        let shuffledIndices = Array(0..<notes.count).shuffled()
+        var map: [Int: Int] = [:]
+        for (note, idx) in zip(notes, shuffledIndices) {
+            map[note] = idx
+        }
+        randomMapping = map
+    }
+
     // MARK: - Internal frame cache
 
     @Published var currentFrameImage: CGImage?
@@ -90,6 +140,9 @@ final class VideoSamplerModel: ObservableObject {
     private let ciContext = CIContext()
     private var imageOrientation: CGImagePropertyOrientation = .up
 
+    // ✅ NEW: cap approximate frame cache size (tweak this if you want)
+    private let maxCacheMemoryMB: Double = 512.0
+
     // MARK: - Window math
 
     private func recalcWindow() {
@@ -114,6 +167,14 @@ final class VideoSamplerModel: ObservableObject {
         guard let idx = slices.firstIndex(where: { $0.id == sliceID }) else { return }
         var s = slices[idx]
         s.assignedNotes.insert(note)
+        slices[idx] = s
+    }
+
+    /// Replace the primary note mapping for a slice (used by note editing).
+    func setPrimaryNote(_ note: Int, for sliceID: UUID) {
+        guard let idx = slices.firstIndex(where: { $0.id == sliceID }) else { return }
+        var s = slices[idx]
+        s.assignedNotes = [note]
         slices[idx] = s
     }
 
@@ -162,17 +223,41 @@ final class VideoSamplerModel: ObservableObject {
 
         duration = asset.duration.seconds
 
-        // size + orientation
+        // size + orientation + nominal frame rate
+        var nominalFPS: Float = 30.0
+
         do {
             let naturalSize = try await track.load(.naturalSize)
             let transform = try await track.load(.preferredTransform)
             let oriented = naturalSize.applying(transform)
             videoSize = CGSize(width: abs(oriented.width), height: abs(oriented.height))
             imageOrientation = Self.orientation(from: transform)
+
+            nominalFPS = (try? await track.load(.nominalFrameRate)) ?? 30.0
         } catch {
             videoSize = CGSize(width: 360, height: 640)
             imageOrientation = .up
+            nominalFPS = 30.0
         }
+
+        // Compute an approximate max frame count based on memory budget
+        let bytesPerFrameEstimate = max(
+            1.0,
+            Double(videoSize.width * videoSize.height * 4) // BGRA
+        )
+        let maxFramesByMemory = Int(
+            (maxCacheMemoryMB * 1024.0 * 1024.0) / bytesPerFrameEstimate
+        )
+        let maxFrames = max(60, maxFramesByMemory) // never less than ~2 seconds of 30fps
+
+        // Decide target FPS so duration * fps <= maxFrames (but don't go below a floor)
+        let safeDuration = max(duration, 0.1)
+        let maxFPSFromMemory = Double(maxFrames) / safeDuration
+        let targetFPS = max(
+            5.0,
+            min(Double(nominalFPS), maxFPSFromMemory)
+        )
+        let frameInterval = 1.0 / targetFPS
 
         do {
             let reader = try AVAssetReader(asset: asset)
@@ -188,6 +273,7 @@ final class VideoSamplerModel: ObservableObject {
             }
 
             var newFrames: [Frame] = []
+            var lastKeptPTS: Double? = nil
 
             while reader.status == .reading {
                 guard let sampleBuffer = output.copyNextSampleBuffer() else {
@@ -198,12 +284,25 @@ final class VideoSamplerModel: ObservableObject {
                 }
 
                 let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+
+                // Downsample in time: only keep frames at least `frameInterval` apart
+                if let last = lastKeptPTS, pts - last < frameInterval {
+                    continue
+                }
+
                 var ciImage = CIImage(cvPixelBuffer: pb)
                 ciImage = ciImage.oriented(imageOrientation)
 
                 let rect = ciImage.extent
                 if let cg = ciContext.createCGImage(ciImage, from: rect) {
                     newFrames.append(Frame(time: pts, image: cg))
+                    lastKeptPTS = pts
+
+                    // Small extra safety: if we somehow overshoot, trim oldest
+                    if newFrames.count > maxFrames {
+                        let overflow = newFrames.count - maxFrames
+                        newFrames.removeFirst(overflow)
+                    }
                 }
             }
 
@@ -234,6 +333,10 @@ final class VideoSamplerModel: ObservableObject {
             triggerAuto(note: note, i: i, o: o)
         case .manual:
             triggerManual(note: note, fallbackI: i, fallbackO: o)
+        case .chrom:
+            triggerChrom(note: note, fallbackI: i, fallbackO: o)
+        case .random:
+            triggerRandom(note: note, fallbackI: i, fallbackO: o)
         }
     }
 
@@ -257,7 +360,11 @@ final class VideoSamplerModel: ObservableObject {
         let endSec   = max(0.0, min(duration, rawEnd))
         guard endSec > startSec else { return }
 
-        startSlice(startSec: startSec, endSec: endSec)
+        if autoContinuous {
+            startSlice(startSec: startSec, endSec: duration)
+        } else {
+            startSlice(startSec: startSec, endSec: endSec)
+        }
     }
 
     // MARK: - Manual (window-relative) mode
@@ -304,6 +411,59 @@ final class VideoSamplerModel: ObservableObject {
         guard endSec > startSec else { return }
 
         startSlice(startSec: startSec, endSec: endSec)
+    }
+
+    // MARK: - Chrom / Random virtual slices
+
+    /// Shared helper: play a virtual slice centered at `centerWindowN` (0–1 in window space).
+    private func triggerVirtual(centerWindowN: Double) {
+        guard duration > 0 else { return }
+
+        recalcWindow()
+
+        let hwN = 0.05
+        let startWindowN = max(0.0, centerWindowN - hwN)
+        let endWindowN   = min(1.0, centerWindowN + hwN)
+
+        let startGlobalN = winOffset + startWindowN * winScale
+        let endGlobalN   = winOffset + endWindowN   * winScale
+
+        var startSec = clamp01(startGlobalN) * duration + latencyOffsetSec
+        var endSec   = clamp01(endGlobalN)   * duration + latencyOffsetSec
+
+        let trimStartSec = winOffset * duration
+        let trimEndSec   = (winOffset + winScale) * duration
+
+        startSec = max(trimStartSec, min(duration, startSec))
+        endSec   = max(startSec, min(trimEndSec, endSec))
+        guard endSec > startSec else { return }
+
+        startSlice(startSec: startSec, endSec: endSec)
+    }
+
+    private func triggerChrom(note: Int, fallbackI: Double, fallbackO: Double) {
+        let notes = chromaticNotes()
+        guard let idx = notes.firstIndex(of: note) else {
+            // fall back to auto if note not in chromatic range
+            triggerAuto(note: note, i: fallbackI, o: fallbackO)
+            return
+        }
+        let count = max(notes.count, 1)
+        let centerN = (Double(idx) + 0.5) / Double(count)
+        triggerVirtual(centerWindowN: centerN)
+    }
+
+    private func triggerRandom(note: Int, fallbackI: Double, fallbackO: Double) {
+        guard !randomMapping.isEmpty,
+              let idx = randomMapping[note] else {
+            // fall back to auto if note not currently mapped
+            triggerAuto(note: note, i: fallbackI, o: fallbackO)
+            return
+        }
+
+        let count = max(randomMapping.count, 1)
+        let centerN = (Double(idx) + 0.5) / Double(count)
+        triggerVirtual(centerWindowN: centerN)
     }
 
     // MARK: - Sampler engine

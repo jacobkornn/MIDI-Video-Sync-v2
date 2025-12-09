@@ -21,6 +21,34 @@ fileprivate func formatTime(_ seconds: Double) -> String {
     return String(format: "%d:%02d.%03d", m, s, ms)
 }
 
+// Helper to parse strings like "C3", "G#4" into MIDI note numbers.
+fileprivate func parseMidiNoteName(_ text: String) -> Int? {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    guard !trimmed.isEmpty else { return nil }
+
+    let names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    var name = ""
+    var octavePart = ""
+
+    for ch in trimmed {
+        if ch == "#" || (ch >= "A" && ch <= "Z") {
+            name.append(ch)
+        } else if ch.isNumber || ch == "-" {
+            octavePart.append(ch)
+        }
+    }
+
+    guard !name.isEmpty, !octavePart.isEmpty,
+          let octave = Int(octavePart),
+          let idx = names.firstIndex(of: name) else {
+        return nil
+    }
+
+    // Inverse of midiNoteName mapping
+    let note = (octave + 2) * 12 + idx
+    return note
+}
+
 // MARK: - ContentView
 
 struct ContentView: View {
@@ -34,33 +62,43 @@ struct ContentView: View {
     private let videoHeight: CGFloat = 640
 
     var body: some View {
-        VStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 24) {
 
-            // ---- VIDEO FRAME ----
-            ZStack {
-                Rectangle()
-                    .fill(Color.black)
-                    .frame(width: videoWidth, height: videoHeight)
-                    .cornerRadius(8)
-                    .shadow(radius: 6)
+            // ---------- LEFT: VIDEO ----------
+            VStack {
+                ZStack {
+                    Rectangle()
+                        .fill(Color.black)
+                        .frame(width: videoWidth, height: videoHeight)
+                        .cornerRadius(8)
+                        .shadow(radius: 6)
 
-                VideoSurfaceView(model: model)
-                    .frame(width: videoWidth, height: videoHeight)
-                    .clipped()
-                    .cornerRadius(8)
+                    VideoSurfaceView(model: model)
+                        .frame(width: videoWidth, height: videoHeight)
+                        .clipped()
+                        .cornerRadius(8)
 
-                if model.currentFrameImage == nil {
-                    Text("Open a video to begin")
-                        .foregroundStyle(.secondary)
-                        .padding(8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.black.opacity(0.5))
-                        )
+                    if model.currentFrameImage == nil {
+                        VStack(spacing: 8) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 40, weight: .light))
+                                .foregroundStyle(.secondary)
+                            Text("Add Video")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(width: videoWidth, height: videoHeight)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if model.currentFrameImage == nil {
+                        openVideo()
+                    }
                 }
             }
 
-            // ---- CONTROL PANEL ----
+            // ---------- CENTER: CONTROLS + TIMELINES ----------
             VStack(alignment: .leading, spacing: 8) {
 
                 // File / status
@@ -74,84 +112,50 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // Bounds timeline (no label, no stamps)
+                TrimTimelineView(
+                    start: $model.winStart,
+                    end: $model.winEnd,
+                    slices: [],                      // no markers here
+                    duration: model.duration,
+                    onTapGlobal: { _ in },            // disable double-tap creation
+                    onSliceDragged: { _, _ in },      // not used
+                    onSliceDelete: { _ in }           // not used
+                )
+                .frame(height: 40)
+
                 Divider()
 
-                // ----------------------------------
-                // 1) SLICE MODE + VIDEO WINDOW
-                // ----------------------------------
+                // Slice mode tabs (no label, centered)
                 HStack {
-                    Text("Slice Mode")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
                     Spacer()
-
                     Picker("", selection: $model.sliceMode) {
                         Text("Auto").tag(VideoSamplerModel.SliceMode.auto)
                         Text("Manual").tag(VideoSamplerModel.SliceMode.manual)
+                        Text("Chrom").tag(VideoSamplerModel.SliceMode.chrom)
+                        Text("Random").tag(VideoSamplerModel.SliceMode.random)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 200)
+                    Spacer()
                 }
 
-                VStack(alignment: .leading,
-                       spacing: model.sliceMode == .manual ? 12 : 4) {
-                    HStack {
-                        Text("Video Window")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        if model.duration > 0 {
-                            let span = max(0.0, model.winEnd - model.winStart)
-                            let startSec = model.winStart * model.duration
-                            let endSec = (model.winStart + span) * model.duration
-                            Text("\(formatTime(startSec)) – \(formatTime(endSec))")
-                                .font(.caption2)
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    TrimTimelineView(
-                        start: $model.winStart,
-                        end: $model.winEnd,
-                        slices: (model.sliceMode == .manual ? model.slices : []),
-                        duration: model.duration,
-                        onTapGlobal: { globalN in
-                            // Double-tap inside yellow window strip → create slice
-                            guard model.sliceMode == .manual else { return }
-                            guard model.duration > 0 else { return }
-
-                            let s = model.winStart
-                            let e = model.winEnd
-                            let span = max(0.0, e - s)
-                            guard span > 0 else { return }
-
-                            // Map global position into window-relative
-                            let centerWindowN = (globalN - s) / span
-                            guard centerWindowN >= 0, centerWindowN <= 1 else { return }
-
-                            model.addSliceAtWindowPosition(centerN: centerWindowN)
-
-                            // Auto-assign MIDI note starting at C1 (36)
-                            guard let slice = model.slices.last else { return }
-                            let idx = model.slices.count - 1
-                            let noteNumber = 36 + idx
-                            model.assign(note: noteNumber, to: slice.id)
-                        },
-                        onSliceDragged: { id, newCenterN in
-                            model.updateSliceCenter(sliceID: id, newCenterN: newCenterN)
-                        },
-                        onSliceDelete: { id in
-                            // Double-tap on marker label → delete that slice
-                            guard model.sliceMode == .manual else { return }
-                            model.slices.removeAll { $0.id == id }
-                        }
-                    )
-                    .frame(height: 40)   // fixed; bar thickness is locked inside
+                // Auto-only Continuous toggle
+                if model.sliceMode == .auto {
+                    Toggle("Continuous", isOn: $model.autoContinuous)
+                        .toggleStyle(.switch)
+                        .font(.caption)
+                        .padding(.top, 4)
+                        .padding(.leading, 4)
                 }
 
-                // Clear button only (still tied to manual mode)
+                // Stamp timeline (Manual / Chrom / Random)
+                if model.sliceMode != .auto {
+                    SliceTimelineView(model: model)
+                        .frame(height: 44)        // a bit taller for breathing room
+                        .padding(.top, 4)         // space above bar
+                }
+
+                // Clear button only (manual mode)
                 if model.sliceMode == .manual {
                     HStack {
                         Spacer()
@@ -164,10 +168,90 @@ struct ContentView: View {
                     }
                 }
 
-                // ----------------------------------
+                // Chromatic range controls
+                if model.sliceMode == .chrom {
+                    HStack {
+                        let notes = model.chromaticNotes()
+                        let lowNote = notes.first ?? 60
+                        let highNote = notes.last ?? 83
+                        Text("Chrom range: \(midiNoteName(lowNote)) – \(midiNoteName(highNote))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("−") {
+                            model.chromaticBaseOctave = max(-2, model.chromaticBaseOctave - 1)
+                        }
+                        .font(.caption2)
+                        Button("+") {
+                            model.chromaticBaseOctave = min(8, model.chromaticBaseOctave + 1)
+                        }
+                        .font(.caption2)
+                    }
+                }
+
+                // Random range + shuffle controls
+                if model.sliceMode == .random {
+                    HStack(spacing: 8) {
+                        Text("Random range:")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        // Low note
+                        Button("−") {
+                            model.randomRangeLow = max(0, model.randomRangeLow - 1)
+                            if model.randomRangeLow > model.randomRangeHigh {
+                                model.randomRangeHigh = model.randomRangeLow
+                            }
+                        }
+                        .font(.caption2)
+
+                        Text(midiNoteName(model.randomRangeLow))
+                            .font(.caption2)
+                            .monospaced()
+
+                        Button("+") {
+                            model.randomRangeLow += 1
+                            if model.randomRangeLow > model.randomRangeHigh {
+                                model.randomRangeHigh = model.randomRangeLow
+                            }
+                        }
+                        .font(.caption2)
+
+                        Text("–")
+                            .font(.caption2)
+
+                        // High note
+                        Button("−") {
+                            model.randomRangeHigh = max(0, model.randomRangeHigh - 1)
+                            if model.randomRangeHigh < model.randomRangeLow {
+                                model.randomRangeLow = model.randomRangeHigh
+                            }
+                        }
+                        .font(.caption2)
+
+                        Text(midiNoteName(model.randomRangeHigh))
+                            .font(.caption2)
+                            .monospaced()
+
+                        Button("+") {
+                            model.randomRangeHigh += 1
+                            if model.randomRangeHigh < model.randomRangeLow {
+                                model.randomRangeLow = model.randomRangeHigh
+                            }
+                        }
+                        .font(.caption2)
+
+                        Spacer()
+
+                        Button("Shuffle") {
+                            model.shuffleRandomSlices()
+                        }
+                        .font(.caption2)
+                        .buttonStyle(.bordered)
+                    }
+                }
+
                 // Arrow to collapse/expand timing section
-                // (centered under Video Window, both modes)
-                // ----------------------------------
                 HStack {
                     Spacer()
                     Button(action: {
@@ -185,9 +269,7 @@ struct ContentView: View {
 
                 Divider()
 
-                // ----------------------------------
-                // 2) WARP / RATE / LATENCY (collapsible)
-                // ----------------------------------
+                // WARP / RATE / LATENCY (collapsible)
                 if showTimingSection {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
@@ -245,10 +327,20 @@ struct ContentView: View {
                     }
                 }
             }
+            // Make control column ~2x video width so timelines are wide
+            .frame(width: videoWidth * 2)
+
+            // ---------- RIGHT: EMPTY SPACE FOR FUTURE ----------
+            Spacer(minLength: 0)
         }
         .padding()
-        .frame(width: videoWidth + 40)
         .onAppear { setupOSC() }
+        .onChange(of: model.sliceMode) { newMode in
+            // Initialize random mapping on first enter, so stamps appear immediately
+            if newMode == .random && model.randomMapping.isEmpty {
+                model.shuffleRandomSlices()
+            }
+        }
     }
 
     // MARK: - File open
@@ -358,11 +450,11 @@ class VideoSurfaceNSView: NSView {
     }
 }
 
-// MARK: - Trim timeline (window + markers)
+// MARK: - Trim timeline (window editor)
 
 struct TrimTimelineView: View {
     @Binding var start: Double   // global 0–1
-    @Binding var end: Double     // global 0–1
+    @Binding var end: Double     // global 1–1
 
     let slices: [VideoSamplerModel.Slice]   // window-relative
     let duration: Double
@@ -406,7 +498,7 @@ struct TrimTimelineView: View {
                     .frame(height: barHeight)
                     .position(x: width / 2, y: barCenterY)
 
-                // Selected window region (yellow-ish) – double-tap area for creating slices
+                // Selected window region (yellow-ish)
                 RoundedRectangle(cornerRadius: barHeight / 2)
                     .fill(Color.accentColor.opacity(0.35))
                     .frame(width: max(endX - startX, handleWidth), height: barHeight)
@@ -417,14 +509,12 @@ struct TrimTimelineView: View {
                                 let now = Date()
                                 if let last = lastTapDate,
                                    now.timeIntervalSince(last) <= doubleTapThreshold {
-                                    // Double tap detected
                                     let x = max(0, min(width, value.location.x))
                                     let clampedX = max(startX, min(endX, x))
                                     let globalN = Double(clampedX / width)
                                     onTapGlobal(globalN)
                                     lastTapDate = nil
                                 } else {
-                                    // First tap
                                     lastTapDate = now
                                 }
                             }
@@ -462,10 +552,12 @@ struct TrimTimelineView: View {
                             }
                     )
 
-                // Markers (window-relative) above bar
+                // Markers (unused now; slices = [])
                 ForEach(slices) { slice in
                     let centerWindowN = slice.centerN
-                    let centerGlobalN = s + centerWindowN * span
+                    let centerGlobalN = span > 0
+                        ? (s + centerWindowN * span)
+                        : s
                     let x = CGFloat(centerGlobalN) * width
                     let centerSec = centerGlobalN * duration
 
@@ -479,7 +571,6 @@ struct TrimTimelineView: View {
                             .monospacedDigit()
                     }
                     .position(x: x, y: labelY)
-                    // Drag to move slice horizontally within window
                     .gesture(
                         DragGesture()
                             .onChanged { value in
@@ -494,7 +585,6 @@ struct TrimTimelineView: View {
                                 onSliceDragged(slice.id, newCenterWindow)
                             }
                     )
-                    // Double-tap on the label to delete this slice
                     .onTapGesture(count: 2) {
                         onSliceDelete(slice.id)
                     }
@@ -504,6 +594,218 @@ struct TrimTimelineView: View {
                         path.addLine(to: CGPoint(x: x, y: barCenterY - barHeight / 2 - 2))
                     }
                     .stroke(Color.primary.opacity(0.7), lineWidth: 1)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Slice timeline (stamps only, independent of bounds visuals)
+
+struct SliceTimelineView: View {
+    @ObservedObject var model: VideoSamplerModel
+
+    @State private var lastTapDate: Date?
+    private let doubleTapThreshold: TimeInterval = 0.30
+
+    @State private var editingSliceID: UUID?
+    @State private var editingNoteText: String = ""
+    @State private var hoveredSliceID: UUID?
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = max(geo.size.width, 1)
+            let height = max(geo.size.height, 1)
+
+            let barHeight: CGFloat = 14
+            let barCenterY = height * 0.65
+            let labelY = height * 0.10
+
+            let s = model.winStart
+            let e = model.winEnd
+            let span = max(0.0, e - s)
+
+            ZStack(alignment: .leading) {
+
+                // ---------- BACKGROUND BAR (visual only) ----------
+                RoundedRectangle(cornerRadius: barHeight / 2)
+                    .fill(Color.gray.opacity(0.25))
+                    .frame(height: barHeight)
+                    .position(x: width / 2, y: barCenterY)
+                    .allowsHitTesting(false)
+
+                // ---------- INTERACTION LAYER (double-tap to create) ----------
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(height: barHeight + 12)
+                    .position(x: width / 2, y: barCenterY)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onEnded { value in
+                                guard model.sliceMode == .manual else { return }
+                                guard model.duration > 0 else { return }
+
+                                let now = Date()
+                                if let last = lastTapDate,
+                                   now.timeIntervalSince(last) <= doubleTapThreshold {
+
+                                    let x = max(0, min(width, value.location.x))
+                                    let centerN = Double(x / width)
+
+                                    model.addSliceAtWindowPosition(centerN: centerN)
+
+                                    if let slice = model.slices.last {
+                                        let idx = model.slices.count - 1
+                                        let note = 36 + idx
+                                        model.assign(note: note, to: slice.id)
+                                    }
+
+                                    lastTapDate = nil
+                                } else {
+                                    lastTapDate = now
+                                }
+                            }
+                    )
+
+                // ---------- MANUAL MODE ----------
+                if model.sliceMode == .manual {
+                    ForEach(Array(model.slices.enumerated()), id: \.element.id) { idx, slice in
+                        let centerN = slice.centerN
+                        let x = CGFloat(centerN) * width
+
+                        let centerGlobalN = span > 0
+                            ? (s + centerN * span)
+                            : s
+
+                        let primaryNote =
+                            slice.assignedNotes.sorted().first ?? (36 + idx)
+
+                        ZStack(alignment: .topTrailing) {
+                            VStack(spacing: 0) {
+                                if editingSliceID == slice.id {
+                                    TextField(
+                                        "",
+                                        text: $editingNoteText,
+                                        onCommit: {
+                                            if let newNote = parseMidiNoteName(editingNoteText) {
+                                                model.setPrimaryNote(newNote, for: slice.id)
+                                            }
+                                            editingSliceID = nil
+                                            editingNoteText = ""
+                                        }
+                                    )
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 52)
+                                } else {
+                                    Text(midiNoteName(primaryNote))
+                                        .font(.caption2)
+                                        .monospaced()
+                                        .onHover { isHover in
+                                            hoveredSliceID = isHover ? slice.id : nil
+                                        }
+                                        .onTapGesture(count: 2) {
+                                            editingSliceID = slice.id
+                                            editingNoteText = midiNoteName(primaryNote)
+                                        }
+                                }
+                            }
+
+                            // X only appears when hovering label
+                            Button {
+                                model.slices.removeAll { $0.id == slice.id }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .buttonStyle(.plain)
+                            .offset(x: 6, y: -6)
+                            .opacity(hoveredSliceID == slice.id ? 1.0 : 0.0)
+                        }
+                        .position(x: x, y: labelY)
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    let locX = max(0, min(width, value.location.x))
+                                    let newCenterN = Double(locX / width)
+                                    model.updateSliceCenter(
+                                        sliceID: slice.id,
+                                        newCenterN: newCenterN
+                                    )
+                                }
+                        )
+
+                        Path { path in
+                            path.move(to: CGPoint(x: x, y: labelY + 6))
+                            path.addLine(
+                                to: CGPoint(
+                                    x: x,
+                                    y: barCenterY - barHeight / 2 - 2
+                                )
+                            )
+                        }
+                        .stroke(Color.primary.opacity(0.7), lineWidth: 1)
+                    }
+                }
+
+                // ---------- CHROM MODE ----------
+                if model.sliceMode == .chrom {
+                    let notes = model.chromaticNotes()
+                    let count = max(notes.count, 1)
+
+                    ForEach(0..<count, id: \.self) { idx in
+                        let centerN = (Double(idx) + 0.5) / Double(count)
+                        let x = CGFloat(centerN) * width
+
+                        VStack {
+                            Text(midiNoteName(notes[idx]))
+                                .font(.caption2)
+                                .monospaced()
+                        }
+                        .position(x: x, y: labelY)
+
+                        Path { path in
+                            path.move(to: CGPoint(x: x, y: labelY + 6))
+                            path.addLine(
+                                to: CGPoint(
+                                    x: x,
+                                    y: barCenterY - barHeight / 2 - 2
+                                )
+                            )
+                        }
+                        .stroke(Color.primary.opacity(0.7), lineWidth: 1)
+                    }
+                }
+
+                // ---------- RANDOM MODE ----------
+                if model.sliceMode == .random {
+                    let mapping = model.randomMapping
+                    let count = max(mapping.count, 1)
+
+                    ForEach(mapping.sorted(by: { $0.value < $1.value }),
+                            id: \.key) { note, index in
+
+                        let centerN = (Double(index) + 0.5) / Double(count)
+                        let x = CGFloat(centerN) * width
+
+                        VStack {
+                            Text(midiNoteName(note))
+                                .font(.caption2)
+                                .monospaced()
+                        }
+                        .position(x: x, y: labelY)
+
+                        Path { path in
+                            path.move(to: CGPoint(x: x, y: labelY + 6))
+                            path.addLine(
+                                to: CGPoint(
+                                    x: x,
+                                    y: barCenterY - barHeight / 2 - 2
+                                )
+                            )
+                        }
+                        .stroke(Color.primary.opacity(0.7), lineWidth: 1)
+                    }
                 }
             }
         }
