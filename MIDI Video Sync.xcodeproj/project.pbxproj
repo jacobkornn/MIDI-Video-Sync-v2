@@ -11,6 +11,10 @@
 		B313385B2EDA5FF900D773C3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B313385A2EDA5FF900D773C3 /* ContentView.swift */; };
 		B313385D2EDA6A5E00D773C3 /* VideoSamplerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B313385C2EDA6A5E00D773C3 /* VideoSamplerModel.swift */; };
 		B313385F2EDA6A7500D773C3 /* MIDIVideoSyncApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B313385E2EDA6A7500D773C3 /* MIDIVideoSyncApp.swift */; };
+		B3A29AC42EE8C09100F17F5C /* Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A29AC32EE8C09100F17F5C /* Helpers.swift */; };
+		B3A29AC82EE8C0CA00F17F5C /* VideoSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A29AC72EE8C0CA00F17F5C /* VideoSurfaceView.swift */; };
+		B3A29ACA2EE8C0DC00F17F5C /* TrimTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A29AC92EE8C0DC00F17F5C /* TrimTimelineView.swift */; };
+		B3A29ACC2EE8C1A900F17F5C /* SliceTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A29ACB2EE8C1A900F17F5C /* SliceTimelineView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,6 +42,10 @@
 		B381EAD72EDA5E94003F7CF3 /* MIDI Video Sync.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MIDI Video Sync.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B381EAE82EDA5E95003F7CF3 /* MIDI Video SyncTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "MIDI Video SyncTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B381EAF22EDA5E95003F7CF3 /* MIDI Video SyncUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "MIDI Video SyncUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B3A29AC32EE8C09100F17F5C /* Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helpers.swift; sourceTree = "<group>"; };
+		B3A29AC72EE8C0CA00F17F5C /* VideoSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoSurfaceView.swift; sourceTree = "<group>"; };
+		B3A29AC92EE8C0DC00F17F5C /* TrimTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrimTimelineView.swift; sourceTree = "<group>"; };
+		B3A29ACB2EE8C1A900F17F5C /* SliceTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SliceTimelineView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -86,10 +94,14 @@
 		B381EACE2EDA5E94003F7CF3 = {
 			isa = PBXGroup;
 			children = (
+				B3A29AC32EE8C09100F17F5C /* Helpers.swift */,
 				B313385C2EDA6A5E00D773C3 /* VideoSamplerModel.swift */,
 				B313385E2EDA6A7500D773C3 /* MIDIVideoSyncApp.swift */,
 				B31338562EDA5FD100D773C3 /* OSCReceiver.swift */,
 				B313385A2EDA5FF900D773C3 /* ContentView.swift */,
+				B3A29AC72EE8C0CA00F17F5C /* VideoSurfaceView.swift */,
+				B3A29AC92EE8C0DC00F17F5C /* TrimTimelineView.swift */,
+				B3A29ACB2EE8C1A900F17F5C /* SliceTimelineView.swift */,
 				B381EAD92EDA5E94003F7CF3 /* MIDI Video Sync */,
 				B381EAEB2EDA5E95003F7CF3 /* MIDI Video SyncTests */,
 				B381EAF52EDA5E95003F7CF3 /* MIDI Video SyncUITests */,
@@ -253,7 +265,11 @@
 			files = (
 				B313385B2EDA5FF900D773C3 /* ContentView.swift in Sources */,
 				B313385F2EDA6A7500D773C3 /* MIDIVideoSyncApp.swift in Sources */,
+				B3A29AC82EE8C0CA00F17F5C /* VideoSurfaceView.swift in Sources */,
 				B31338572EDA5FD100D773C3 /* OSCReceiver.swift in Sources */,
+				B3A29ACC2EE8C1A900F17F5C /* SliceTimelineView.swift in Sources */,
+				B3A29AC42EE8C09100F17F5C /* Helpers.swift in Sources */,
+				B3A29ACA2EE8C0DC00F17F5C /* TrimTimelineView.swift in Sources */,
 				B313385D2EDA6A5E00D773C3 /* VideoSamplerModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
