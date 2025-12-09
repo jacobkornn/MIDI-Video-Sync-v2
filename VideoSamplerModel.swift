@@ -127,10 +127,11 @@ final class VideoSamplerModel: ObservableObject {
 
     private var winOffset: Double = 0
     private var winScale: Double = 1
+    private var playingTriggerID: UInt64 = 0
 
     private var triggerID: UInt64 = 0
 
-    // Playback state
+    // Playback state (sampler engine)
     private var isPlaying: Bool = false
     private var currentSliceStartSec: Double = 0
     private var currentSliceEndSec: Double = 0
@@ -140,8 +141,20 @@ final class VideoSamplerModel: ObservableObject {
     private let ciContext = CIContext()
     private var imageOrientation: CGImagePropertyOrientation = .up
 
-    // ✅ NEW: cap approximate frame cache size (tweak this if you want)
+    // Frame cache cap
     private let maxCacheMemoryMB: Double = 512.0
+
+    // MARK: - Continuous playback (AVPlayer)
+
+    private var player: AVPlayer?
+    private var playerItem: AVPlayerItem?
+    private var videoOutput: AVPlayerItemVideoOutput?
+    private var continuousTimer: Timer?
+    
+    private var averageFrameDuration: Double {
+        guard frames.count > 1 else { return 1.0 / 30.0 }
+        return (frames.last!.time - frames.first!.time) / Double(frames.count - 1)
+    }
 
     // MARK: - Window math
 
@@ -213,6 +226,23 @@ final class VideoSamplerModel: ObservableObject {
         }
     }
 
+    private func setupContinuousPlayer(with asset: AVAsset) {
+        let item = AVPlayerItem(asset: asset)
+
+        let output = AVPlayerItemVideoOutput(
+            pixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+            ]
+        )
+
+        item.add(output)
+
+        self.playerItem = item
+        self.videoOutput = output
+        self.player = AVPlayer(playerItem: item)
+        self.player?.actionAtItemEnd = .pause
+    }
+
     private func loadAndDecode(url: URL) async {
         let asset = AVAsset(url: url)
 
@@ -220,6 +250,9 @@ final class VideoSamplerModel: ObservableObject {
             status = "Failed: no video track"
             return
         }
+
+        // Setup continuous playback player (does not replace frame cache)
+        setupContinuousPlayer(with: asset)
 
         duration = asset.duration.seconds
 
@@ -319,6 +352,56 @@ final class VideoSamplerModel: ObservableObject {
             status = "Decode exception"
         }
     }
+    // MARK: - Continuous AVPlayer helpers
+
+    private func playContinuous(from startSec: Double) {
+        guard let player, let playerItem else { return }
+
+        // Stop sampler engine
+        isPlaying = false
+        elapsedInSlice = 0
+
+        let time = CMTime(seconds: startSec, preferredTimescale: 600)
+        player.pause()
+        playerItem.cancelPendingSeeks()
+        player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+        player.play()
+
+        startContinuousTimerIfNeeded()
+    }
+
+    private func startContinuousTimerIfNeeded() {
+        guard continuousTimer == nil else { return }
+        continuousTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0,
+                                               repeats: true) { [weak self] _ in
+            self?.pullContinuousFrame()
+        }
+    }
+
+    private func stopContinuousTimer() {
+        continuousTimer?.invalidate()
+        continuousTimer = nil
+    }
+
+    private func pullContinuousFrame() {
+        guard autoContinuous,
+              let output = videoOutput,
+              let item = playerItem else { return }
+
+        let itemTime = item.currentTime()
+        var displayTime = CMTime.zero
+
+        if output.hasNewPixelBuffer(forItemTime: itemTime),
+           let pb = output.copyPixelBuffer(forItemTime: itemTime,
+                                           itemTimeForDisplay: &displayTime) {
+            var ciImage = CIImage(cvPixelBuffer: pb)
+            ciImage = ciImage.oriented(imageOrientation)
+            let rect = ciImage.extent
+            if let cg = ciContext.createCGImage(ciImage, from: rect) {
+                currentFrameImage = cg
+            }
+        }
+    }
 
     // MARK: - MIDI trigger entry point
 
@@ -342,6 +425,8 @@ final class VideoSamplerModel: ObservableObject {
 
     func stopIfNeeded(note: Int) {
         isPlaying = false
+        player?.pause()
+        stopContinuousTimer()
     }
 
     // MARK: - Auto (Simpler i/o) mode
@@ -361,7 +446,8 @@ final class VideoSamplerModel: ObservableObject {
         guard endSec > startSec else { return }
 
         if autoContinuous {
-            startSlice(startSec: startSec, endSec: duration)
+            // NEW: real playback from this point in the video
+            playContinuous(from: startSec)
         } else {
             startSlice(startSec: startSec, endSec: endSec)
         }
@@ -472,6 +558,8 @@ final class VideoSamplerModel: ObservableObject {
         isPlaying = false
         elapsedInSlice = 0
 
+        playingTriggerID = triggerID
+
         currentSliceStartSec = startSec
         currentSliceEndSec = endSec
 
@@ -486,10 +574,11 @@ final class VideoSamplerModel: ObservableObject {
     }
 
     func advanceFrame(deltaTime: Double) {
-        guard isPlaying, framesReady, !frames.isEmpty else { return }
+        guard isPlaying, framesReady, !frames.isEmpty, playingTriggerID == triggerID else { return }
 
         let rate: Double = (warpMode == .rate) ? Double(max(0.01, playbackRate)) : 1.0
-        elapsedInSlice += deltaTime * rate
+        let frameStep = averageFrameDuration / max(rate, 0.01)
+        elapsedInSlice += min(deltaTime, frameStep)
         let nowSec = currentSliceStartSec + elapsedInSlice
 
         if nowSec >= currentSliceEndSec {
