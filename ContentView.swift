@@ -300,7 +300,7 @@ struct ContentView: View {
 
         r.onNoteOff = { [weak model] note in
             DispatchQueue.main.async {
-                model?.stopIfNeeded(note: note)
+                //model?.stopIfNeeded(note: note)
             }
         }
 

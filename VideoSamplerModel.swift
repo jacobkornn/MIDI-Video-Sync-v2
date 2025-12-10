@@ -136,6 +136,8 @@ final class VideoSamplerModel: ObservableObject {
     private var currentSliceEndSec: Double = 0
     private var elapsedInSlice: Double = 0
     private var currentFrameIndex: Int = 0
+    
+    private let minimumSliceDuration: Double = 1.0 / 30.0
 
     private let ciContext = CIContext()
     private var imageOrientation: CGImagePropertyOrientation = .up
@@ -341,7 +343,7 @@ final class VideoSamplerModel: ObservableObject {
     }
 
     func stopIfNeeded(note: Int) {
-        isPlaying = false
+        //isPlaying = false
     }
 
     // MARK: - Auto (Simpler i/o) mode
@@ -469,21 +471,27 @@ final class VideoSamplerModel: ObservableObject {
     // MARK: - Sampler engine
 
     private func startSlice(startSec: Double, endSec: Double) {
+
+        // Enforce a minimum slice duration (visual equivalent of Simpler burst)
+        let minimumSliceDuration = 1.0 / 30.0   // ~1 frame at 30fps
+        let safeEndSec = max(endSec, startSec + minimumSliceDuration)
+
         isPlaying = false
         elapsedInSlice = 0
 
         currentSliceStartSec = startSec
-        currentSliceEndSec = endSec
+        currentSliceEndSec   = safeEndSec
 
         if let idx = frames.firstIndex(where: { $0.time >= startSec }) {
             currentFrameIndex = idx
         } else {
-            currentFrameIndex = frames.count - 1
+            currentFrameIndex = max(0, frames.count - 1)
         }
 
         currentFrameImage = frames[currentFrameIndex].image
         isPlaying = true
     }
+
 
     func advanceFrame(deltaTime: Double) {
         guard isPlaying, framesReady, !frames.isEmpty else { return }
