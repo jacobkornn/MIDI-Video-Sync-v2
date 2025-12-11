@@ -1,76 +1,77 @@
 import SwiftUI
 import AppKit
+import AVFoundation
 
 struct VideoSurfaceView: NSViewRepresentable {
     @ObservedObject var model: VideoSamplerModel
 
     func makeNSView(context: Context) -> VideoSurfaceNSView {
         let v = VideoSurfaceNSView()
-        v.model = model
+        v.configure(with: model)
         return v
     }
 
     func updateNSView(_ nsView: VideoSurfaceNSView, context: Context) {
-        nsView.model = model
+        nsView.update(model: model)
     }
 }
 
-class VideoSurfaceNSView: NSView {
-    weak var model: VideoSamplerModel? {
-        didSet { startTimerIfNeeded() }
-    }
+final class VideoSurfaceNSView: NSView {
 
-    private var displayTimer: Timer?
+    private var playerLayer: AVPlayerLayer?
+    private var imageLayer: CALayer?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        layerContentsRedrawPolicy = .onSetNeedsDisplay
+        setupLayers()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         wantsLayer = true
-        layerContentsRedrawPolicy = .onSetNeedsDisplay
+        setupLayers()
     }
 
-    deinit {
-        displayTimer?.invalidate()
+    private func setupLayers() {
+        // Player layer (video playback)
+        let p = AVPlayerLayer()
+        p.videoGravity = .resizeAspectFill
+        layer = CALayer()
+        layer?.addSublayer(p)
+        self.playerLayer = p
+
+        // Image layer (cached burst frames)
+        let img = CALayer()
+        img.contentsGravity = .resizeAspectFill
+        img.masksToBounds = true
+        layer?.addSublayer(img)
+        self.imageLayer = img
     }
 
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        startTimerIfNeeded()
+    override func layout() {
+        super.layout()
+        playerLayer?.frame = bounds
+        imageLayer?.frame = bounds
     }
 
-    private func startTimerIfNeeded() {
-        displayTimer?.invalidate()
-
-        guard window != nil, model != nil else {
-            displayTimer = nil
-            return
-        }
-
-        displayTimer = Timer.scheduledTimer(
-            timeInterval: 1.0 / 60.0,
-            target: self,
-            selector: #selector(step),
-            userInfo: nil,
-            repeats: true
-        )
+    // Called at creation time
+    func configure(with model: VideoSamplerModel) {
+        playerLayer?.player = model.player
+        updatePreviewImage(using: model.currentFrameImage)
     }
 
-    @objc private func step() {
-        guard let model else { return }
+    // Called whenever @Published values change
+    func update(model: VideoSamplerModel) {
+        playerLayer?.player = model.player
+        updatePreviewImage(using: model.currentFrameImage)
+    }
 
-        model.advanceFrame(deltaTime: 1.0 / 60.0)
-
-        if let cg = model.currentFrameImage {
-            layer?.contentsGravity = .resizeAspectFill
-            layer?.contents = cg
+    private func updatePreviewImage(using cg: CGImage?) {
+        if let cg {
+            imageLayer?.contents = cg
         } else {
-            layer?.contents = nil
+            imageLayer?.contents = nil
         }
     }
 }
-
